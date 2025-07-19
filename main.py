@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import sys
 import logging
-from PyQt5.QtCore import QObject, Qt
+
+import docker
+from PyQt5.QtCore import QObject
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
 import qtawesome as qta
 
-from presentation.components.tasks_screen import TasksScreen
+from presentation.components.kafka.kafka_screen import KafkaScreen
+from presentation.components.localstack.localstack_screen import LocalStackScreen
 from services.notification_manager import NotificationManager
 from utils.utilities import get_style_sheet
 
@@ -24,14 +27,20 @@ class ApplicationManager(QObject):
         self.app.setQuitOnLastWindowClosed(False)
         self.app.setStyleSheet(get_style_sheet())
 
+        self.screens = {}
+
         self.tray_icon = QSystemTrayIcon(self.app)
         self.tray_icon.setIcon(qta.icon('fa5s.bell', color='white'))
-        self.tray_icon.setToolTip("To-Do Dashboard")
+        self.tray_icon.setToolTip("DockerAI - Gerenciador de containers AI")
 
         menu = QMenu()
-        open_action = QAction("Abrir Tasks", self.app)
-        open_action.triggered.connect(self.show_tasks)
-        menu.addAction(open_action)
+        kafka_action = QAction("Kafka", self.app)
+        kafka_action.triggered.connect(lambda: self.open_screen("kafka"))
+        menu.addAction(kafka_action)
+
+        localstack_action = QAction("Localstack", self.app)
+        localstack_action.triggered.connect(lambda: self.open_screen("localstack"))
+        menu.addAction(localstack_action)
 
         exit_action = QAction("Sair", self.app)
         exit_action.triggered.connect(self.app.quit)
@@ -42,35 +51,71 @@ class ApplicationManager(QObject):
 
         self.notification_manager = NotificationManager(self.app)
 
-        self.tasks_window = None
-        self.show_tasks()
-        logger.info("[ApplicationManager] To-Do Dashboard iniciado com sucesso!")
+        # Já abre as duas telas no startup, se quiser
+        # self.open_screen("localstack")
+        self.open_screen("kafka")
 
-    def show_tasks(self):
-        """
-        Exibe ou esconde a janela de Tasks quando o usuário escolhe no menu.
-        """
+        logger.info("[ApplicationManager] DockerAI iniciado com sucesso!")
+
+    def _check_docker_daemon(self):
         try:
-            if self.tasks_window and self.tasks_window.isVisible():
-                logger.info("TasksScreen já está visível. Escondendo...")
-                self.notification_manager.notify(
-                    "To-Do Dashboard",
-                    "TasksScreen já aberta!",
-                    duration=5000
-                )
+            client = docker.from_env()
+            client.ping()
+            return True
+        except docker.errors.DockerException as e:
+            logger.error(f"Erro Docker daemon: {e}")
+            return False
+
+    def open_screen(self, key: str):
+        """
+        Exibe a janela correspondente sem fechar as outras.
+        """
+        if not self._check_docker_daemon():
+            self.notification_manager.notify(
+                "Erro",
+                "Docker daemon não está rodando. Por favor, inicie o Docker.",
+                duration=5000
+            )
+            return
+
+        try:
+            if key in self.screens:
+                try:
+                    if self.screens[key].isVisible() or True:
+                        self.screens[key].show()
+                        self.screens[key].raise_()
+                        self.screens[key].activateWindow()
+                        return
+                except RuntimeError:
+                    del self.screens[key]
+
+            if key == "localstack":
+                logger.info("Criando instância de LocalStackScreen.")
+                self.screens[key] = LocalStackScreen()
+            elif key == "kafka":
+                logger.info("Criando instância de KafkaScreen.")
+                self.screens[key] = KafkaScreen()
             else:
-                if not self.tasks_window:
-                    logger.info("Criando instância de TasksScreen.")
-                    self.tasks_window = TasksScreen()
-                logger.info("Exibindo TasksScreen.")
-                self.tasks_window.show()
-                self.tasks_window.raise_()
-                self.tasks_window.activateWindow()
+                logger.error(f"Chave desconhecida: {key}")
+                return
+
+            self.screens[key].show()
+            self.screens[key].raise_()
+            self.screens[key].activateWindow()
+
         except Exception as e:
-            logger.error(f"Erro ao exibir TasksScreen: {e}")
-            if self.tasks_window:
-                self.tasks_window.close()
-                self.tasks_window = None
+            logger.error(f"Erro ao exibir {key}: {e}")
+            self.notification_manager.notify(
+                "Erro",
+                f"Falha ao exibir {key}: {e}",
+                duration=5000
+            )
+            if key in self.screens:
+                try:
+                    self.screens[key].close()
+                except Exception as close_e:
+                    logger.error(f"Erro ao fechar {key}: {close_e}")
+                del self.screens[key]
 
     def run(self):
         sys.exit(self.app.exec_())

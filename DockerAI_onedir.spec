@@ -1,13 +1,18 @@
-# TaskAI_onedir.spec
-# -*- mode: python ; coding: utf-8 -*-
+# -*- mode: python -*-
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+
 block_cipher = None
+
+hidden_imports = ['docker'] + collect_submodules('docker')
+
+datas = [('styles/app_styles.qss', 'styles')]
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('styles/app_styles.qss', 'styles')],
-    hiddenimports=[],
+    datas=datas,
+    hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -25,7 +30,7 @@ exe = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name='TaskAI',
+    name='DockerAI',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -47,5 +52,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    name='TaskAI'
+    name='DockerAI'
 )

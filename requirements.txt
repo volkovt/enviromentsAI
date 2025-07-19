@@ -1,5 +1,13 @@
-PyQt5
-matplotlib
-python-dateutil
-qtawesome
-openpyxl
+PyQt5>=5.15.0          # usado em main.py, kafka_screen.py, localstack_screen.py, dynamodb_component.py, apigateway_component.py, json_text_edit.py, sqs_component.py :contentReference[oaicite:0]{index=0}L1-L2
+qtawesome>=1.0.0       # ícones FontAwesome em main.py e componentes :contentReference[oaicite:1]{index=1}L1-L2
+
+docker>=5.0.0          # Docker SDK em localstack_controller.py e localstack_service.py :contentReference[oaicite:2]{index=2}L4-L5
+boto3>=1.26.0          # clientes S3, DynamoDB, SecretsManager, Lambda, API Gateway, SQS :contentReference[oaicite:3]{index=3}L6-L7
+
+requests>=2.0.0        # chamadas HTTP em APIGatewayComponent :contentReference[oaicite:4]{index=4}L8-L9
+PyYAML>=6.0            # yaml.safe_load em apigateway_service.py :contentReference[oaicite:5]{index=5}L9-L10
+python-dateutil>=2.8.0 # parsing/manipulação de datas (utils/utilities) :contentReference[oaicite:6]{index=6}L11-L12
+openpyxl>=3.0.0        # leitura/gravação de planilhas Excel (utils/utilities) :contentReference[oaicite:7]{index=7}L11-L12
+
+confluent-kafka[avro]>=1.9.2,<2.0.0  # cliente Kafka Python com Avro (Producer, Consumer, AvroProducer, AvroConsumer) :contentReference[oaicite:8]{index=8}L5-L8
+avro   # suporte a Avro para Serializer/Deserializer :contentReference[oaicite:9]{index=9}L5-L8
