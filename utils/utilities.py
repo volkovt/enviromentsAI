@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import date, datetime
 from functools import lru_cache
 
 
@@ -20,7 +21,7 @@ def get_style_sheet(file_path: str = "styles/app_styles.qss") -> str:
             print('Base path:', BASE_PATH)
         else:
             BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-            BASE_PATH = os.path.join(BASE_PATH, ".")
+            BASE_PATH = os.path.join(BASE_PATH, "..")
 
         full_path = os.path.join(os.path.normpath(BASE_PATH), os.path.normpath(file_path))
         print(f"Loading stylesheet from: {full_path}")
@@ -32,3 +33,13 @@ def get_style_sheet(file_path: str = "styles/app_styles.qss") -> str:
     except UnicodeDecodeError as e:
         print(f"Error reading stylesheet: {e}")
         return ""
+
+def ensure_date(val):
+    if isinstance(val, date):
+        return val
+    if isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val).date()
+        except Exception:
+            return date.today()
+    return date.today()

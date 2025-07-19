@@ -1,9 +1,6 @@
 import collections
-
 from PyQt5.QtCore import QObject
-
-from toast_notification import ToastNotification
-
+from presentation.components.toast.toast_notification import ToastNotification
 
 class NotificationManager(QObject):
     """
