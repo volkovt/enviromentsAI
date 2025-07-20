@@ -2,6 +2,7 @@ import json
 import logging
 
 from services.localstack.s3_service import S3Service
+from services.localstack.secret_manager_service import SecretManagerService
 from services.localstack.sqs_service import SQSService
 from services.localstack.dynamodb_service import DynamoDBService
 from services.localstack.lambda_service import LambdaService
@@ -21,6 +22,7 @@ class ExportService:
         self.dynamodb = DynamoDBService(self.get_port)
         self.lambda_svc = LambdaService(self.get_port)
         self.apigw = APIGatewayService(self.get_port)
+        self.secrets = SecretManagerService(self.get_port)
 
     def export_scripts(self) -> str:
         port = self.get_port()
@@ -110,6 +112,23 @@ class ExportService:
                     f"aws --endpoint-url $AWS_ENDPOINT apigateway get-rest-api "
                     f"--rest-api-id {api_id} > {name}.json"
                 )
+
+            secrets_list = self.secrets.list_secrets()
+            if secrets_list:
+                lines.append("# Secret Manager")
+                for secret in secrets_list:
+                    name = secret["Name"]
+                    try:
+                        value = self.secrets.get_secret_value(name)
+                        safe_value = value.replace("'", "'\"'\"'")
+                        lines.append(
+                            "aws --endpoint-url $AWS_ENDPOINT secretsmanager create-secret "
+                            f"--name '{name}' "
+                            f"--secret-string '{safe_value}'"
+                        )
+                    except Exception as e:
+                        logger.error(f"Erro ao exportar secret {name}: {e}")
+                lines.append("")
 
         except Exception as e:
             logger.error(f"Erro ao montar scripts de exportação: {e}")
