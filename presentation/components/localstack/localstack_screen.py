@@ -4,7 +4,7 @@ from PyQt5.QtGui import QShowEvent, QCursor
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QSpinBox, QComboBox, QPushButton,
-    QLabel, QMessageBox, QProgressDialog, QSizePolicy, QApplication
+    QLabel, QMessageBox, QProgressDialog, QSizePolicy, QApplication, QFileDialog
 )
 from PyQt5.QtCore import QSize, Qt, QThread, pyqtSignal
 import qtawesome as qta
@@ -22,6 +22,7 @@ from presentation.components.localstack.lambda_component import LambdaComponent
 from presentation.components.localstack.s3_component import S3Component
 from presentation.components.localstack.secret_manager_component import SecretManagerComponent
 from presentation.components.localstack.sqs_component import SQSComponent
+from services.localstack.export_service import ExportService
 from services.localstack.localstack_session import LocalStackSession
 
 logger = logging.getLogger("[ApplicationManager]")
@@ -95,7 +96,6 @@ class LocalStackScreen(QWidget):
         port_layout.addWidget(self.port_input)
         content_layout.addLayout(port_layout)
 
-        # Seleção de serviço
         svc_layout = QHBoxLayout()
         svc_layout.setAlignment(Qt.AlignHCenter)
         svc_layout.setSpacing(10)
@@ -115,12 +115,10 @@ class LocalStackScreen(QWidget):
         svc_layout.addWidget(self.svc_combo)
         content_layout.addLayout(svc_layout)
 
-        # Container de componentes
         self.service_container = QWidget()
         self.service_layout = QVBoxLayout(self.service_container)
         content_layout.addWidget(self.service_container)
 
-        # Botões Start/Stop
         btn_layout = QHBoxLayout()
         btn_layout.setAlignment(Qt.AlignHCenter)
         btn_layout.setSpacing(20)
@@ -139,11 +137,19 @@ class LocalStackScreen(QWidget):
         self.stop_btn.setToolTip("Para o container LocalStack.")
         self.stop_btn.setEnabled(False)
         self.stop_btn.setCursor(Qt.PointingHandCursor)
+        self.export_btn = QPushButton(
+            qta.icon("fa5s.file-code", color="cyan"),
+            "Exportar Scripts"
+        )
+        self.export_btn.setToolTip("Exporta todos os scripts para recriar recursos")
+        self.export_btn.clicked.connect(self._on_export_scripts)
+        self.export_btn.setEnabled(False)
+
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
+        btn_layout.addWidget(self.export_btn)
         content_layout.addLayout(btn_layout)
 
-        # Controllers
         self.localstack_ctrl = LocalStackController(self.port_input.value)
         self.sqs_ctrl = SQSController(self.port_input.value)
         self.s3_ctrl = S3Controller(self.port_input.value)
@@ -154,15 +160,33 @@ class LocalStackScreen(QWidget):
 
         self.localstack_session = LocalStackSession()
 
-        # Conecta botões a runner
         self.start_btn.clicked.connect(lambda: self._run_action(True))
         self.stop_btn.clicked.connect(lambda: self._run_action(False))
 
-        # Sincroniza UI inicial
         self._update_ui(self.localstack_ctrl.is_running())
 
+    def _on_export_scripts(self):
+        try:
+            script = self.localstack_ctrl.export_scripts()
+            path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Salvar scripts",
+                "",
+                "Shell Script (*.sh)"
+            )
+            if path:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(script)
+                QMessageBox.information(
+                    self,
+                    "Exportar Scripts",
+                    f"Scripts exportados em:\n{path}"
+                )
+        except Exception as e:
+            logger.error(f"Erro ao exportar scripts: {e}")
+            QMessageBox.critical(self, "Exportar Scripts", str(e))
+
     def _run_action(self, start: bool):
-        # Progress dialog
         self.progress = QProgressDialog(
             "Aguarde...", None, 0, 0, self,
             flags=Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint
@@ -172,7 +196,6 @@ class LocalStackScreen(QWidget):
         self.progress.setCancelButton(None)
         self.progress.show()
 
-        # Worker thread
         self.worker = LocalStackWorker(self.localstack_ctrl, start)
         self.worker.success.connect(self._on_worker_done)
         self.worker.error.connect(self._on_worker_error)
@@ -195,6 +218,7 @@ class LocalStackScreen(QWidget):
         self.port_input.setEnabled(not running)
         self.start_btn.setEnabled(not running)
         self.stop_btn.setEnabled(running)
+        self.export_btn.setEnabled(running)
         self.svc_combo.setEnabled(running)
 
         service_selected = running and self.svc_combo.currentText() != "Nenhum"

@@ -1,7 +1,10 @@
+import logging
 from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
+
+logger = logging.getLogger("[DynamoDBService]")
 
 class DynamoDBService:
     """
@@ -23,6 +26,20 @@ class DynamoDBService:
     def list_tables(self) -> list:
         resp = self._client().list_tables()
         return resp.get("TableNames", [])
+
+    def scan_table(self, table_name: str) -> list[dict]:
+        """
+        Retorna todos os itens existentes na tabela DynamoDB.
+        """
+        try:
+            paginator = self._client().get_paginator("scan")
+            items = []
+            for page in paginator.paginate(TableName=table_name):
+                items.extend(page.get("Items", []))
+            return items
+        except Exception as e:
+            logger.error(f"Erro ao escanear tabela {table_name}: {e}")
+            raise
 
     def create_table(self, table_name: str) -> dict:
         """

@@ -1,4 +1,9 @@
+import logging
+
 import boto3
+from botocore.config import Config
+
+logger = logging.getLogger("[SQSService]")
 
 class SQSService:
     """
@@ -17,8 +22,25 @@ class SQSService:
             endpoint_url=f"http://localhost:{port}",
             region_name="us-east-1",
             aws_access_key_id="test",
-            aws_secret_access_key="test"
+            aws_secret_access_key="test",
+            config=Config(retries={"max_attempts": 0})
         )
+
+    def receive_messages(self, queue_url: str) -> list[dict]:
+        """
+        Retorna até 10 mensagens da fila (não as deleta).
+        """
+        try:
+            resp = self.client.receive_message(
+                QueueUrl=queue_url,
+                MaxNumberOfMessages=10,
+                WaitTimeSeconds=0,
+                VisibilityTimeout=0
+            )
+            return resp.get("Messages", [])
+        except Exception as e:
+            logger.error(f"Erro ao receber mensagens da fila {queue_url}: {e}")
+            raise
 
     def list_queues(self) -> list:
         resp = self._client().list_queues()
