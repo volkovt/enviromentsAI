@@ -202,10 +202,15 @@ class EnvironmentWidget(QWidget):
             else:
                 self.static_editor.hide()
                 self.http_editor.show(
-                    method=var.method, url=var.url,
-                    params=var.params, headers=var.headers,
-                    body=var.body, response=var.response,
-                    extract_path=var.extract_path
+                    method=var.method,
+                    url=var.url,
+                    params=var.params,
+                    headers=var.headers,
+                    body=var.body,
+                    body_params=var.body_params,
+                    response=var.response,
+                    extract_path=var.extract_path,
+                    content_type=var.content_type
                 )
         except Exception as e:
             logger.error(f"Erro ao exibir variável '{var.name}': {e}")

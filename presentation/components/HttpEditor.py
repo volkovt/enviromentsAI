@@ -1,4 +1,6 @@
 import json
+import urllib
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QComboBox, QLineEdit,
     QPushButton, QCheckBox, QTableWidgetItem
@@ -46,9 +48,25 @@ class HttpEditor(QWidget):
         btn_add_header.clicked.connect(lambda: self._add_row(self.headers_table))
         layout.addWidget(btn_add_header)
 
+        layout.addWidget(QLabel("Content-Type:"))
+        self.content_type_cb = QComboBox()
+        self.content_type_cb.addItems([
+            "application/json",
+            "application/x-www-form-urlencoded"
+        ])
+        layout.addWidget(self.content_type_cb)
+
         layout.addWidget(QLabel("Body (JSON):"))
         self.body_te = JSONTextEdit()
         layout.addWidget(self.body_te)
+
+        layout.addWidget(QLabel("Body (Form URL Encoded):"))
+        self.body_form_table = ParameterTableWidget(minimumHeight=100)
+        self.body_form_table.hide()
+        layout.addWidget(self.body_form_table)
+        btn_add_body = QPushButton("Adicionar Campo de Form")
+        btn_add_body.clicked.connect(lambda: self._add_row(self.body_form_table))
+        layout.addWidget(btn_add_body)
 
         layout.addWidget(QLabel("Response Body:"))
         self.response_te = JSONTextEdit()
@@ -72,21 +90,29 @@ class HttpEditor(QWidget):
         table.setItem(row, 2, QTableWidgetItem(""))
 
     def _connect_signals(self):
-        # qualquer alteração dispara a atualização de config
         self.method_cb.currentTextChanged.connect(self._emit_config_changed)
         self.url_le.textChanged.connect(self._emit_config_changed)
         self.extract_le.textChanged.connect(self._emit_config_changed)
         self.params_table.cellChanged.connect(lambda r, c: self._emit_config_changed())
         self.headers_table.cellChanged.connect(lambda r, c: self._emit_config_changed())
+        self.content_type_cb.currentTextChanged.connect(self._update_body_editor_visibility)
         self.body_te.textChanged.connect(self._emit_config_changed)
         self.response_te.textChanged.connect(self._emit_config_changed)
-        # botao de teste pode ser tratado externamente na controller
         self.test_btn.clicked.connect(lambda: self._emit_config_changed())
 
-    def show(self, *, method, url, params, headers, body, response, extract_path):
+    def _update_body_editor_visibility(self):
+        is_json = self.content_type_cb.currentText() == "application/json"
+        self.body_te.setVisible(is_json)
+        self.body_form_table.setVisible(not is_json)
+        self._emit_config_changed()
+
+    def show(self, *, method, url, params, headers, body, body_params, response, extract_path, content_type):
         """
         Popula cada widget com os valores recebidos.
         """
+        self.content_type_cb.setCurrentText(content_type or "application/json")
+        self._update_body_editor_visibility()
+
         self.method_cb.setCurrentText(method or "GET")
         self.url_le.setText(url or "")
 
@@ -106,26 +132,36 @@ class HttpEditor(QWidget):
             self.headers_table.setItem(r, 1, QTableWidgetItem(key))
             self.headers_table.setItem(r, 2, QTableWidgetItem(val))
 
+        self.body_form_table.setRowCount(0)
+        for k, v in (body_params or {}).items():
+            self._add_row(self.body_form_table)
+            r = self.body_form_table.rowCount() - 1
+            self.body_form_table.cellWidget(r, 0).setChecked(True)
+            self.body_form_table.setItem(r, 1, QTableWidgetItem(k))
+            self.body_form_table.setItem(r, 2, QTableWidgetItem(v))
+
         self.body_te.setPlainText(body or "")
         self.response_te.setPlainText(response or "")
         self.extract_le.setText(extract_path or "")
         super().show()
 
     def _emit_config_changed(self):
-        """
-        Lê todos os widgets, monta um dict parcial de HTTP config
-        e emite via signal para o controller atualizar o modelo.
-        """
         cfg = {
             "type": "http",
+            "content_type": self.content_type_cb.currentText(),
             "method": self.method_cb.currentText(),
             "url": self.url_le.text().strip(),
             "params": self._collect_table(self.params_table),
             "headers": self._collect_table(self.headers_table),
-            "body": self.body_te.toPlainText().strip(),
-            "response": self.response_te.toPlainText().strip(),
             "extract_path": self.extract_le.text().strip()
         }
+        if cfg["content_type"] == "application/x-www-form-urlencoded":
+            cfg["body_params"] = self._collect_table(self.body_form_table)
+            # opcional: construir string já codificada
+            cfg["body"] = urllib.parse.urlencode(cfg["body_params"])
+        else:
+            cfg["body"] = self.body_te.toPlainText().strip()
+            cfg["body_params"] = {}
         self.configChanged.emit(cfg)
 
     def _collect_table(self, table: ParameterTableWidget) -> dict:

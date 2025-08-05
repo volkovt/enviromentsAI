@@ -93,16 +93,21 @@ class EnvironmentController(QObject):
                 var.value = updated
 
             elif isinstance(updated, dict):
-                var.type        = "http"
-                var.method      = updated.get("method")
-                var.url         = updated.get("url")
-                var.params      = updated.get("params", {})
-                var.headers     = updated.get("headers", {})
-                var.body        = updated.get("body", "")
-                var.extract_path= updated.get("extract_path", "")
+                var.type = "http"
+                var.content_type = updated.get("content_type", "application/json")
+                var.method = updated.get("method")
+                var.url = updated.get("url")
+                var.params = updated.get("params", {})
+                var.headers = updated.get("headers", {})
+                if var.content_type == "application/x-www-form-urlencoded":
+                    var.body_params = updated.get("body_params", {})
+                    var.body = updated.get("body", "")
+                else:
+                    var.body = updated.get("body", "")
+                    var.body_params = {}
+                var.extract_path = updated.get("extract_path", "")
 
             self.var_svc.save_all(self._vars)
-            #logger.info(f"Variável '{var.name}' (índice {index}) atualizada e salva")
         except Exception as e:
             logger.error(f"Falha ao salvar variável no índice {index}: {e}")
 
@@ -145,12 +150,17 @@ class EnvironmentController(QObject):
             return
         var = self._vars[index]
         try:
+            if var.content_type == "application/x-www-form-urlencoded":
+                data = var.body_params
+            else:
+                data = var.body.encode("utf-8") if var.body else None
+
             response = requests.request(
                 method=var.method or "GET",
                 url=var.url,
                 params=var.params,
                 headers=var.headers,
-                data=var.body.encode('utf-8') if var.body else None,
+                data=data,
                 timeout=10
             )
             var.response = response.text
